@@ -2,7 +2,7 @@ use super::*;
 use crate::common::setup::{create_enum, create_table, create_table_without_asserts};
 use sea_orm::{
     error::*, sea_query, ConnectionTrait, DatabaseConnection, DbBackend, DbConn, EntityName,
-    ExecResult, Schema,
+    ExecResult, Schema, StatementBuilder,
 };
 use sea_query::{
     extension::postgres::Type, Alias, ColumnDef, ColumnType, ForeignKeyCreateStatement, IntoIden,
@@ -19,6 +19,7 @@ pub async fn create_tables(db: &DatabaseConnection) -> Result<(), DbErr> {
     create_byte_primary_key_table(db).await?;
     create_satellites_table(db).await?;
     create_transaction_log_table(db).await?;
+    create_audit_log_table(db).await?;
 
     let create_enum_stmts = match db_backend {
         DbBackend::MySql | DbBackend::Sqlite => Vec::new(),
@@ -315,6 +316,33 @@ pub async fn create_transaction_log_table(db: &DbConn) -> Result<ExecResult, DbE
         .to_owned();
 
     create_table(db, &stmt, TransactionLog).await
+}
+
+pub async fn create_audit_log_table(db: &DbConn) -> Result<ExecResult, DbErr> {
+    let stmt = sea_query::Table::create()
+        .table(audit_log::Entity)
+        .col(
+            ColumnDef::new(audit_log::Column::Id)
+                .integer()
+                .not_null()
+                .auto_increment()
+                .primary_key(),
+        )
+        .col(
+            ColumnDef::new(audit_log::Column::BusinessKey)
+                .string()
+                .not_null(),
+        )
+        .col(
+            ColumnDef::new(audit_log::Column::Effective)
+                .range(ColumnType::TimestampWithTimeZone)
+                .not_null()
+        )
+        .to_owned();
+
+    let x = stmt.build(sea_query::PostgresQueryBuilder);
+    println!("table create statment: {x}");
+    create_table(db, &stmt, AuditLog).await
 }
 
 pub async fn create_insert_default_table(db: &DbConn) -> Result<ExecResult, DbErr> {
