@@ -1,6 +1,8 @@
 pub mod active_enum;
 pub mod active_enum_child;
 pub mod active_enum_vec;
+#[cfg(feature = "postgres-range")]
+pub mod audit_log;
 pub mod applog;
 pub mod binary;
 pub mod bits;
@@ -34,6 +36,8 @@ pub mod value_type;
 pub use active_enum::Entity as ActiveEnum;
 pub use active_enum_child::Entity as ActiveEnumChild;
 pub use active_enum_vec::Entity as ActiveEnumVec;
+#[cfg(feature = "postgres-range")]
+pub use audit_log::Entity as AuditLog;
 pub use applog::Entity as Applog;
 pub use binary::Entity as Binary;
 pub use bits::Entity as Bits;

@@ -34,14 +34,16 @@ tracing = { version = "0.1", default-features = false, features = ["attributes",
 rust_decimal = { version = "1", default-features = false, optional = true }
 bigdecimal = { version = "0.4", default-features = false, optional = true }
 sea-orm-macros = { version = "~1.1.8", path = "sea-orm-macros", default-features = false, features = ["strum"] }
+# version = "0.32.1"
 sea-query = { version = "0.32.1", default-features = false, features = ["thread-safe", "hashable-value", "backend-mysql", "backend-postgres", "backend-sqlite"] }
-sea-query-binder = { version = "0.7.0", default-features = false, optional = true }
+sea-query-binder = { path = "../sea-query/sea-query-binder", default-features = false, optional = true }
 strum = { version = "0.26", default-features = false }
 serde = { version = "1.0", default-features = false }
 serde_json = { version = "1.0", default-features = false, optional = true }
 sqlx = { version = "0.8.2", default-features = false, optional = true }
 uuid = { version = "1", default-features = false, optional = true }
-pgvector = { version = "~0.4", default-features = false, optional = true }
+pgvector = { version = "~0.4", default-features = false, optional = true}
+pgrange = { path = "../pgrange", default-features = false, optional = true, features = ["postgres", "sqlx", "with-chrono", "with-time", "with-rust_decimal", "with-bigdecimal"] }
 ipnetwork = { version = "0.20", default-features = false, optional = true }
 ouroboros = { version = "0.18", default-features = false }
 url = { version = "2.2", default-features = false }
@@ -73,6 +75,12 @@ default = [
     "with-bigdecimal",
     "with-uuid",
     "with-time",
+    "postgres-range",
+    "sqlx-postgres",
+    # "sqlx-all",
+    # "sqlx-sqlite",
+    "proxy",
+    "runtime-tokio-rustls",
 ]
 macros = ["sea-orm-macros/derive"]
 mock = []
@@ -86,12 +94,13 @@ with-time = ["time", "sea-query/with-time", "sea-query-binder?/with-time", "sqlx
 with-ipnetwork = ["ipnetwork", "sea-query/with-ipnetwork", "sea-query-binder?/with-ipnetwork", "sqlx?/ipnetwork"]
 postgres-array = ["sea-query/postgres-array", "sea-query-binder?/postgres-array", "sea-orm-macros/postgres-array"]
 postgres-vector = ["pgvector", "sea-query/postgres-vector", "sea-query-binder?/postgres-vector"]
+postgres-range = ["pgrange","sea-query/postgres-range", "sea-query-binder?/postgres-range"]
 json-array = ["postgres-array"] # this does not actually enable sqlx-postgres, but only a few traits to support array in sea-query
 sea-orm-internal = []
 sqlx-dep = []
 sqlx-all = ["sqlx-mysql", "sqlx-postgres", "sqlx-sqlite"]
 sqlx-mysql = ["sqlx-dep", "sea-query-binder/sqlx-mysql", "sqlx/mysql"]
-sqlx-postgres = ["sqlx-dep", "sea-query-binder/sqlx-postgres", "sqlx/postgres", "postgres-array"]
+sqlx-postgres = ["sqlx-dep", "sea-query-binder/sqlx-postgres", "sqlx/postgres", "postgres-array", "postgres-range"]
 sqlx-sqlite = ["sqlx-dep", "sea-query-binder/sqlx-sqlite", "sqlx/sqlite"]
 sqlite-use-returning-for-3_35 = []
 runtime-async-std = ["sqlx?/runtime-async-std"]
@@ -107,5 +116,5 @@ tests-cfg = ["serde/derive"]
 seaography = ["sea-orm-macros/seaography"]
 
 # This allows us to develop using a local version of sea-query
-# [patch.crates-io]
-# sea-query = { path = "../sea-query" }
+[patch.crates-io]
+sea-query = { path = "../sea-query" }

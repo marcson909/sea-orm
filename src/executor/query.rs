@@ -1101,6 +1101,63 @@ mod postgres_array {
     }
 }
 
+
+
+#[cfg(feature = "postgres-range")]
+impl<T> TryGetable for pgrange::PgRange<T>
+where
+    T: sea_query::with_postgres_range::RangeCompatible + sea_query::ValueType,
+    T: sqlx::Type<sqlx::Postgres>,
+    for<'r> T: sqlx::Decode<'r, sqlx::Postgres>,
+    pgrange::PgRange<T>: sqlx::Type<sqlx::Postgres>,
+    for<'r> pgrange::PgRange<T>: sqlx::Decode<'r, sqlx::Postgres>,
+    T: std::fmt::Debug,
+{
+
+    #[allow(unused_variables)]
+    fn try_get_by<I: ColIdx>(res: &QueryResult, idx: I) -> Result<Self, TryGetError> {
+        match &res.row {
+            #[cfg(feature = "sqlx-mysql")]
+            QueryResultRow::SqlxMySql(_) => {
+                Err(type_err("Range unsupported by sqlx-mysql").into())
+            }
+            #[cfg(feature = "sqlx-postgres")]
+            QueryResultRow::SqlxPostgres(row) => row
+                .try_get::<Option<pgrange::PgRange<T>>, _>(idx.as_sqlx_postgres_index())
+                .map_err(|e| sqlx_error_to_query_err(e).into())
+                .and_then(|opt| opt.ok_or_else(|| err_null_idx_col(idx))),
+            #[cfg(feature = "sqlx-sqlite")]
+            QueryResultRow::SqlxSqlite(_) => {
+                Err(type_err("Range unsupported by sqlx-sqlite").into())
+            }
+            #[cfg(feature = "mock")]
+            QueryResultRow::Mock(row) => row.try_get::<pgrange::PgRange<T>, _>(idx).map_err(|e| {
+                debug_print!("{:#?}", e.to_string());
+                err_null_idx_col(idx)
+            }),
+            #[cfg(feature = "proxy")]
+            QueryResultRow::Proxy(row) => row.try_get::<pgrange::PgRange<T>, _>(idx).map_err(|e| {
+                debug_print!("{:#?}", e.to_string());
+                err_null_idx_col(idx)
+            }),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!(),
+        }
+    }
+
+    fn try_get(res: &QueryResult, pre: &str, col: &str) -> Result<Self, TryGetError> {
+        if pre.is_empty() {
+            Self::try_get_by(res, col)
+        } else {
+            Self::try_get_by(res, std::format!("{pre}{col}").as_str())
+        }
+    }
+
+    fn try_get_by_index(res: &QueryResult, index: usize) -> Result<Self, TryGetError> {
+        Self::try_get_by(res, index)
+    }
+}
+
 #[cfg(feature = "postgres-vector")]
 impl TryGetable for pgvector::Vector {
     #[allow(unused_variables)]

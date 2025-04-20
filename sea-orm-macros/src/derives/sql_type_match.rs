@@ -114,3 +114,59 @@ pub fn arr_type_match(
         }
     }
 }
+
+
+pub fn range_type_match(
+    range_type: Option<TokenStream>,
+    field_type: &str,
+    field_span: Span,
+) -> TokenStream {
+    match range_type {
+        Some(t) => quote! { sea_orm::sea_query::RangeType::#t },
+        None => {
+            let range_type = match field_type {
+                "char" => quote! { Char },
+                "String" | "&str" => quote! { String },
+                "i8" => quote! { TinyInt },
+                "u8" => quote! { TinyUnsigned },
+                "i16" => quote! { SmallInt },
+                "u16" => quote! { SmallUnsigned },
+                "i32" => quote! { Int },
+                "u32" => quote! { Unsigned },
+                "i64" => quote! { BigInt },
+                "u64" => quote! { BigUnsigned },
+                "f32" => quote! { Float },
+                "f64" => quote! { Double },
+                "bool" => quote! { Bool },
+                "Date" | "NaiveDate" => quote! { ChronoDate },
+                "Time" | "NaiveTime" => quote! { ChronoTime },
+                "DateTime" | "NaiveDateTime" => {
+                    quote! { ChronoDateTime }
+                }
+                "DateTimeUtc" | "DateTimeLocal" | "DateTimeWithTimeZone" => {
+                    quote! { ChronoDateTimeWithTimeZone }
+                }
+                "Uuid" => quote! { Uuid },
+                "Json" => quote! { Json },
+                "Decimal" => quote! { Decimal },
+                _ => {
+                    // Assumed it's ActiveEnum if none of the above type matches
+                    quote! {}
+                }
+            };
+            if range_type.is_empty() {
+                let ty: Type = LitStr::new(field_type, field_span)
+                    .parse()
+                    .expect("field type error");
+                let def = quote_spanned! { field_span =>
+                    std::convert::Into::<sea_orm::sea_query::RangeType>::into(
+                        <#ty as sea_orm::sea_query::ValueType>::range_type()
+                    )
+                };
+                quote! { #def }
+            } else {
+                quote! { sea_orm::sea_query::RangeType::#range_type }
+            }
+        }
+    }
+}

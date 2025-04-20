@@ -1,6 +1,6 @@
 use sea_orm::entity::prelude::*;
 use sea_orm::{
-    sea_query::{ArrayType, ColumnType, ValueType},
+    sea_query::{ArrayType, RangeType, ColumnType, ValueType},
     TryGetError, TryGetable,
 };
 
@@ -62,6 +62,10 @@ impl ValueType for Events {
 
     fn array_type() -> ArrayType {
         ArrayType::String
+    }
+
+    fn range_type() -> RangeType {
+        RangeType::String
     }
 
     fn column_type() -> ColumnType {

@@ -84,7 +84,6 @@ impl FromQueryResult for JsonValue {
             crate::QueryResultRow::SqlxPostgres(row) => {
                 use serde_json::json;
                 use sqlx::{postgres::types::Oid, Column, Postgres, Row, Type};
-
                 for column in row.columns() {
                     let col = if !column.name().starts_with(pre) {
                         continue;
@@ -96,6 +95,14 @@ impl FromQueryResult for JsonValue {
                     macro_rules! match_postgres_type {
                         ( $type: ty ) => {
                             match col_type.kind() {
+                                #[cfg(feature = "postgres-range")]
+                                sqlx::postgres::PgTypeKind::Range(_) => {
+                                    if <$type as sea_query::with_postgres_range::RangeCompatible>::is_range_compatible() {
+                                        if <Option<pgrange::PgRange<$type>> as Type<Postgres>>::type_info().eq(col_type) {
+                                            try_get_type!(pgrange::PgRange<$type>, col);
+                                        }
+                                    }
+                                }
                                 #[cfg(feature = "postgres-array")]
                                 sqlx::postgres::PgTypeKind::Array(_) => {
                                     if <Vec<$type> as Type<Postgres>>::type_info().eq(col_type) {
@@ -151,6 +158,20 @@ impl FromQueryResult for JsonValue {
                     try_get_type!(String, col);
                     #[cfg(feature = "postgres-array")]
                     try_get_type!(Vec<String>, col);
+                    #[cfg(feature = "postgres-range")]
+                    try_get_type!(pgrange::PgRange<i32>, col);
+                    #[cfg(feature = "postgres-range")]
+                    try_get_type!(pgrange::PgRange<i64>, col);
+                    #[cfg(all(feature = "with-rust_decimal", feature = "postgres-range"))]
+                    try_get_type!(pgrange::PgRange<rust_decimal::Decimal>, col);
+                    #[cfg(all(feature = "with-chrono", feature = "postgres-range"))]
+                    try_get_type!(pgrange::PgRange<chrono::NaiveDateTime>, col);
+                    #[cfg(all(feature = "with-time", feature = "postgres-range"))]
+                    try_get_type!(pgrange::PgRange<time::PrimitiveDateTime>, col);
+                    #[cfg(all(feature = "with-chrono", feature = "postgres-range"))]
+                    try_get_type!(pgrange::PgRange<chrono::DateTime<chrono::FixedOffset>>, col);
+                    #[cfg(all(feature = "with-time", feature = "postgres-range"))]
+                    try_get_type!(pgrange::PgRange<time::OffsetDateTime>, col);
                     #[cfg(feature = "postgres-vector")]
                     try_get_type!(pgvector::Vector, col);
                     #[cfg(feature = "with-uuid")]
@@ -248,7 +269,7 @@ impl FromQueryResult for JsonValue {
 #[cfg(test)]
 #[cfg(feature = "mock")]
 mod tests {
-    use crate::tests_cfg::cake;
+    use crate::tests_cfg::{cake, audit_log};
     use crate::{entity::*, DbBackend, DbErr, MockDatabase};
     use sea_query::Value;
 
@@ -265,6 +286,37 @@ mod tests {
             Some(serde_json::json!({
                 "id": 128,
                 "name": "apple"
+            }))
+        );
+
+        Ok(())
+    }
+    #[smol_potat::test]
+    #[cfg(all(feature = "with-chrono",feature = "postgres-range"))]
+    async fn to_json_range() -> Result<(), DbErr> {
+        let string = "2020-01-01T02:02:02+08:00";
+        let timestamp = chrono::DateTime::parse_from_rfc3339(string).unwrap();
+        let later = timestamp.checked_add_days(chrono::Days::new(1)).unwrap();
+        let range = pgrange::PgRange {
+            start: std::ops::Bound::Included(timestamp),
+            end: std::ops::Bound::Excluded(later),
+        };
+        let db = MockDatabase::new(DbBackend::Postgres)
+            .append_query_results([[maplit::btreemap! {
+                "id" => Into::<Value>::into(128),
+                "business_key" => Into::<Value>::into("abc"),
+                "foo" => Into::<Value>::into("bar"),
+                "effective_range" => Into::<Value>::into(range),
+            }]])
+            .into_connection();
+
+        assert_eq!(
+            audit_log::Entity::find().into_json().one(&db).await.unwrap(),
+            Some(serde_json::json!({
+                "id": 128,
+                "business_key": "abc",
+                "foo": "bar",
+                "effective_range": "['2020-01-01 02:02:02 +08:00','2020-01-02 02:02:02 +08:00')"
             }))
         );
 

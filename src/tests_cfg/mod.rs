@@ -2,6 +2,7 @@
 
 //! Configurations for test cases and examples. Not intended for actual use.
 
+pub mod audit_log;
 pub mod cake;
 pub mod cake_expanded;
 pub mod cake_filling;
@@ -16,6 +17,7 @@ pub mod rust_keyword;
 pub mod sea_orm_active_enums;
 pub mod vendor;
 
+pub use audit_log::Entity as AuditLog;
 pub use cake::Entity as Cake;
 pub use cake_expanded::Entity as CakeExpanded;
 pub use cake_filling::Entity as CakeFilling;

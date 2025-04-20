@@ -47,6 +47,10 @@ impl sea_query::ValueType for StringVec {
     fn column_type() -> sea_query::ColumnType {
         sea_query::ColumnType::Json
     }
+
+    fn range_type() -> sea_query::RangeType {
+        sea_orm::sea_query::RangeType::Json
+    }
 }
 
 impl sea_orm::sea_query::Nullable for StringVec {

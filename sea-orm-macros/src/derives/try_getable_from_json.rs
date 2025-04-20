@@ -11,6 +11,17 @@ pub fn expand_derive_from_json_query_result(ident: Ident) -> syn::Result<TokenSt
         quote!()
     };
 
+    let impl_range_compatible = if cfg!(feature = "postgres-range") {
+        quote!(
+            #[automatically_derived]
+            impl sea_orm::sea_query::value::with_postgres_range::RangeCompatible for #ident { fn is_range_compatible() -> bool {
+                true
+            }}
+        )
+    } else {
+        quote!()
+    };
+
     Ok(quote!(
         #[automatically_derived]
         impl sea_orm::TryGetableFromJson for #ident {}
@@ -41,6 +52,10 @@ pub fn expand_derive_from_json_query_result(ident: Ident) -> syn::Result<TokenSt
                 sea_orm::sea_query::ArrayType::Json
             }
 
+            fn range_type() -> sea_orm::sea_query::RangeType {
+                sea_orm::sea_query::RangeType::Json
+            }
+
             fn column_type() -> sea_orm::sea_query::ColumnType {
                 sea_orm::sea_query::ColumnType::Json
             }
@@ -54,5 +69,7 @@ pub fn expand_derive_from_json_query_result(ident: Ident) -> syn::Result<TokenSt
         }
 
         #impl_not_u8
+
+        #impl_range_compatible
     ))
 }
