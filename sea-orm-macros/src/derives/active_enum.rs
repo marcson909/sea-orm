@@ -312,6 +312,17 @@ impl ActiveEnum {
             quote!()
         };
 
+        let impl_range_compatible = if cfg!(feature = "postgres-range") {
+            quote!(
+                #[automatically_derived]
+                impl sea_orm::sea_query::value::with_postgres_range::RangeCompatible for #ident { fn is_range_compatible() -> bool {
+                    false
+                }}
+            )
+        } else {
+            quote!()
+        };
+
         let impl_try_getable_array = if cfg!(feature = "postgres-array") {
             quote!(
                 #[automatically_derived]
@@ -321,6 +332,19 @@ impl ActiveEnum {
                             .into_iter()
                             .map(|value| <Self as sea_orm::ActiveEnum>::try_from_value(&value).map_err(Into::into))
                             .collect()
+                    }
+                }
+            )
+        } else {
+            quote!()
+        };
+
+        let impl_try_getable_range = if cfg!(feature = "postgres-range") {
+            quote!(
+                #[automatically_derived]
+                impl sea_orm::TryGetableArray for #ident {
+                    fn try_get_by<I: sea_orm::ColIdx>(res: &sea_orm::QueryResult, index: I) -> std::result::Result<Self, sea_orm::TryGetError> {
+                        <<Self as sea_orm::ActiveEnum>::Value as sea_orm::ActiveEnumValue>::try_get_by(res, index)?
                     }
                 }
             )
@@ -377,6 +401,8 @@ impl ActiveEnum {
 
             #impl_try_getable_array
 
+            #impl_try_getable_range
+
             #[automatically_derived]
             #[allow(clippy::from_over_into)]
             impl Into<sea_orm::sea_query::Value> for #ident {
@@ -408,6 +434,10 @@ impl ActiveEnum {
                     <<Self as sea_orm::ActiveEnum>::Value as sea_orm::sea_query::ValueType>::array_type()
                 }
 
+                fn range_type() -> sea_orm::sea_query::RangeType {
+                    <<Self as sea_orm::ActiveEnum>::Value as sea_orm::sea_query::ValueType>::range_type()
+                }
+
                 fn column_type() -> sea_orm::sea_query::ColumnType {
                     <Self as sea_orm::ActiveEnum>::db_type()
                         .get_column_type()
@@ -428,6 +458,8 @@ impl ActiveEnum {
             }
 
             #impl_not_u8
+
+            #impl_range_compatible
         )
     }
 }

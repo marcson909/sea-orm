@@ -12,6 +12,7 @@ struct DeriveValueTypeStruct {
     ty: Type,
     column_type: TokenStream,
     array_type: TokenStream,
+    range_type: TokenStream,
 }
 
 struct DeriveValueTypeEnum {
@@ -70,6 +71,7 @@ impl DeriveValueTypeStruct {
         let name = input.ident;
         let mut col_type = None;
         let mut arr_type = None;
+        let mut range_type = None;
 
         for attr in input.attrs.iter() {
             if !attr.path().is_ident("sea_orm") {
@@ -84,6 +86,14 @@ impl DeriveValueTypeStruct {
                         col_type = Some(ty);
                     } else {
                         return Err(meta.error(format!("Invalid column_type {:?}", lit)));
+                    }
+                } else if meta.path.is_ident("range_type") {
+                    let lit = meta.value()?.parse()?;
+                    if let Lit::Str(litstr) = lit {
+                        let ty: TokenStream = syn::parse_str(&litstr.value())?;
+                        range_type = Some(ty);
+                    }else {
+                        return Err(meta.error(format!("Invalid range_type {:?}", lit)));
                     }
                 } else if meta.path.is_ident("array_type") {
                     let lit = meta.value()?.parse()?;
@@ -119,11 +129,15 @@ impl DeriveValueTypeStruct {
         let array_type =
             crate::derives::sql_type_match::arr_type_match(arr_type, field_type, field_span);
 
+        let range_type =
+            crate::derives::sql_type_match::range_type_match(range_type, field_type, field_span);
+
         Ok(Self {
             name,
             ty,
             column_type,
             array_type,
+            range_type,
         })
     }
 
@@ -132,6 +146,7 @@ impl DeriveValueTypeStruct {
         let field_type = &self.ty;
         let column_type = &self.column_type;
         let array_type = &self.array_type;
+        let range_type = &self.range_type;
 
         quote!(
             #[automatically_derived]
@@ -157,6 +172,10 @@ impl DeriveValueTypeStruct {
 
                 fn type_name() -> std::string::String {
                     stringify!(#name).to_owned()
+                }
+
+                fn range_type() -> sea_orm::sea_query::RangeType {
+                    #range_type
                 }
 
                 fn array_type() -> sea_orm::sea_query::ArrayType {
@@ -274,6 +293,10 @@ impl DeriveValueTypeEnum {
 
                 fn type_name() -> std::string::String {
                     stringify!(#name).to_owned()
+                }
+
+                fn range_type() -> sea_orm::sea_query::RangeType {
+                    sea_orm::sea_query::RangeType::String
                 }
 
                 fn array_type() -> sea_orm::sea_query::ArrayType {

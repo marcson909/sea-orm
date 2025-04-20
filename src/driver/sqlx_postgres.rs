@@ -1,7 +1,7 @@
 use futures_util::lock::Mutex;
 use log::LevelFilter;
-use sea_query::Values;
-use std::{fmt::Write, future::Future, pin::Pin, sync::Arc};
+use sea_query::{Values, Value};
+use std::{fmt::Write, future::Future, pin::Pin, sync::Arc, ops::Bound};
 
 use sqlx::{
     pool::PoolConnection,
@@ -435,6 +435,20 @@ pub(crate) fn from_sqlx_postgres_row_to_proxy_row(row: &sqlx::postgres::PgRow) -
                         "INT" | "SERIAL" | "INT4" => Value::Int(Some(
                             row.try_get(c.ordinal()).expect("Failed to get integer"),
                         )),
+                        #[cfg(feature = "postgres-range")]
+                        "INT4RANGE" => {
+                            let pg_range: pgrange::PgRange<i32> = row
+                                .try_get(c.ordinal())
+                                .expect("Failed to get int4range");
+
+                            Value::Range(
+                                sea_query::RangeType::Int,
+                                Some(Box::new(pgrange::PgRange {
+                                    start: convert_bound_to_value(pg_range.start),
+                                    end: convert_bound_to_value(pg_range.end),
+                                })),
+                            )
+                        },
                         #[cfg(feature = "postgres-array")]
                         "INT[]" | "SERIAL[]" | "INT4[]" => Value::Array(
                             sea_query::ArrayType::Int,
@@ -450,6 +464,20 @@ pub(crate) fn from_sqlx_postgres_row_to_proxy_row(row: &sqlx::postgres::PgRow) -
                         "BIGINT" | "BIGSERIAL" | "INT8" => Value::BigInt(Some(
                             row.try_get(c.ordinal()).expect("Failed to get big integer"),
                         )),
+                        #[cfg(feature = "postgres-range")]
+                        "INT8RANGE" => {
+                            let pg_range: pgrange::PgRange<i64> = row
+                                .try_get(c.ordinal())
+                                .expect("Failed to get int8range");
+
+                            Value::Range(
+                                sea_query::RangeType::BigInt,
+                                Some(Box::new(pgrange::PgRange {
+                                    start: convert_bound_to_value(pg_range.start),
+                                    end: convert_bound_to_value(pg_range.end),
+                                })),
+                            )
+                        },
                         #[cfg(feature = "postgres-array")]
                         "BIGINT[]" | "BIGSERIAL[]" | "INT8[]" => Value::Array(
                             sea_query::ArrayType::BigInt,
@@ -533,7 +561,38 @@ pub(crate) fn from_sqlx_postgres_row_to_proxy_row(row: &sqlx::postgres::PgRow) -
                         "NUMERIC" => Value::Decimal(Some(Box::new(
                             row.try_get(c.ordinal()).expect("Failed to get numeric"),
                         ))),
+                        #[cfg(all(feature = "with-bigdecimal", feature = "postgres-range"))]
+                        "NUMRANGE" => {
+                            let pg_range: pgrange::PgRange<bigdecimal::BigDecimal> = row
+                                .try_get(c.ordinal())
+                                .expect("Failed to get numrange");
 
+                            Value::Range(
+                                sea_query::RangeType::BigDecimal,
+                                Some(Box::new(pgrange::PgRange {
+                                    start: convert_bound_to_value(pg_range.start),
+                                    end: convert_bound_to_value(pg_range.end),
+                                })),
+                            )
+                        },
+                        #[cfg(all(
+                            feature = "with-rust_decimal",
+                            not(feature = "with-bigdecimal"),
+                            feature = "postgres-range"
+                        ))]
+                        "NUMRANGE" => {
+                            let pg_range: PgRange<rust_decimal::Decimal> = row
+                                .try_get(c.ordinal())
+                                .expect("Failed to get numrange");
+
+                            Value::Range(
+                                sea_query::RangeType::Decimal,
+                                Some(Box::new(PgRange {
+                                    start: convert_bound_to_value(pg_range.start),
+                                    end: convert_bound_to_value(pg_range.end),
+                                })),
+                            )
+                        },
                         #[cfg(all(feature = "with-bigdecimal", feature = "postgres-array"))]
                         "NUMERIC[]" => Value::Array(
                             sea_query::ArrayType::BigDecimal,
@@ -631,7 +690,34 @@ pub(crate) fn from_sqlx_postgres_row_to_proxy_row(row: &sqlx::postgres::PgRow) -
                         "TIMESTAMP" => Value::TimeDateTime(Some(Box::new(
                             row.try_get(c.ordinal()).expect("Failed to get timestamp"),
                         ))),
+                        #[cfg(all(feature = "with-chrono", feature = "postgres-range"))]
+                        "TSRANGE" => {
+                            let pg_range: pgrange::PgRange<chrono::NaiveDateTime> = row
+                                .try_get(c.ordinal())
+                                .expect("Failed to get tsrange");
 
+                            Value::Range(
+                                sea_query::RangeType::ChronoDateTime,
+                                Some(Box::new(pgrange::PgRange {
+                                    start: convert_bound_to_value(pg_range.start),
+                                    end: convert_bound_to_value(pg_range.end),
+                                })),
+                            )
+                        },
+                        #[cfg(all(feature = "with-time", not(feature = "with-chrono"), feature = "postgres-range"))]
+                        "TSRANGE" => {
+                            let pg_range: PgRange<time::PrimitiveDateTime> = row
+                                .try_get(c.ordinal())
+                                .expect("Failed to get tsrange");
+
+                            Value::Range(
+                                sea_query::RangeType::TimeDateTime,
+                                Some(Box::new(PgRange {
+                                    start: convert_bound_to_value(pg_range.start),
+                                    end: convert_bound_to_value(pg_range.end),
+                                })),
+                            )
+                        },
                         #[cfg(all(feature = "with-chrono", feature = "postgres-array"))]
                         "TIMESTAMP[]" => Value::Array(
                             sea_query::ArrayType::ChronoDateTime,
@@ -667,7 +753,34 @@ pub(crate) fn from_sqlx_postgres_row_to_proxy_row(row: &sqlx::postgres::PgRow) -
                         "DATE" => Value::TimeDate(Some(Box::new(
                             row.try_get(c.ordinal()).expect("Failed to get date"),
                         ))),
+                        #[cfg(all(feature = "with-chrono", feature = "postgres-range"))]
+                        "DATERANGE" => {
+                            let pg_range: pgrange::PgRange<chrono::NaiveDate> = row
+                                .try_get(c.ordinal())
+                                .expect("Failed to get daterange");
 
+                            Value::Range(
+                                sea_query::RangeType::ChronoDate,
+                                Some(Box::new(pgrange::PgRange {
+                                    start: convert_bound_to_value(pg_range.start),
+                                    end: convert_bound_to_value(pg_range.end),
+                                })),
+                            )
+                        },
+                        #[cfg(all(feature = "with-time", not(feature = "with-chrono"), feature = "postgres-range"))]
+                        "DATERANGE" => {
+                            let pg_range: PgRange<time::Date> = row
+                                .try_get(c.ordinal())
+                                .expect("Failed to get daterange");
+
+                            Value::Range(
+                                sea_query::RangeType::TimeDate,
+                                Some(Box::new(PgRange {
+                                    start: convert_bound_to_value(pg_range.start),
+                                    end: convert_bound_to_value(pg_range.end),
+                                })),
+                            )
+                        },
                         #[cfg(all(feature = "with-chrono", feature = "postgres-array"))]
                         "DATE[]" => Value::Array(
                             sea_query::ArrayType::ChronoDate,
@@ -753,6 +866,34 @@ pub(crate) fn from_sqlx_postgres_row_to_proxy_row(row: &sqlx::postgres::PgRow) -
                                     .collect(),
                             )),
                         ),
+                        #[cfg(all(feature = "with-chrono", feature = "postgres-range"))]
+                        "TSTZRANGE" => {
+                            let pg_range: pgrange::PgRange<chrono::DateTime<chrono::Utc>> = row
+                                .try_get(c.ordinal())
+                                .expect("Failed to get tstzrange");
+
+                            Value::Range(
+                                sea_query::RangeType::ChronoDateTimeUtc,
+                                Some(Box::new(pgrange::PgRange {
+                                    start: convert_bound_to_value(pg_range.start),
+                                    end: convert_bound_to_value(pg_range.end),
+                                })),
+                            )
+                        },
+                        #[cfg(all(feature = "with-time", not(feature = "with-chrono"), feature = "postgres-range"))]
+                        "TSTZRANGE" => {
+                            let pg_range: PgRange<time::OffsetDateTime> = row
+                                .try_get(c.ordinal())
+                                .expect("Failed to get tstzrange");
+
+                            Value::Range(
+                                sea_query::RangeType::TimeDateTimeWithTimeZone,
+                                Some(Box::new(PgRange {
+                                    start: convert_bound_to_value(pg_range.start),
+                                    end: convert_bound_to_value(pg_range.end),
+                                })),
+                            )
+                        },
                         #[cfg(all(
                             feature = "with-time",
                             not(feature = "with-chrono"),
@@ -827,5 +968,13 @@ pub(crate) fn from_sqlx_postgres_row_to_proxy_row(row: &sqlx::postgres::PgRow) -
                 )
             })
             .collect(),
+    }
+}
+
+fn convert_bound_to_value<T: Into<Value>>(bound: Bound<T>) -> Bound<Value> {
+    match bound {
+        Bound::Included(v) => Bound::Included(v.into()),
+        Bound::Excluded(v) => Bound::Excluded(v.into()),
+        Bound::Unbounded => Bound::Unbounded,
     }
 }
