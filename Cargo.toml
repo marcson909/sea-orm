@@ -42,7 +42,7 @@ serde_json = { version = "1.0", default-features = false, optional = true }
 sqlx = { version = "0.8.2", default-features = false, optional = true }
 uuid = { version = "1", default-features = false, optional = true }
 pgvector = { version = "~0.4", default-features = false, optional = true}
-pgrange = { path = "../pgrange", default-features = false, optional = true, features = ["postgres", "sqlx", "with-chrono", "with-time", "with-rust_decimal", "with-bigdecimal"] }
+pgrange = { path = "../pgrange", default-features = false, optional = true}
 ipnetwork = { version = "0.20", default-features = false, optional = true }
 ouroboros = { version = "0.18", default-features = false }
 url = { version = "2.2", default-features = false }
